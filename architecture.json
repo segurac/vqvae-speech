@@ -5,7 +5,7 @@
     "dim_symbol_emb": 1,
     "num_exemplar": 512,
     "dim_exemplar": 64,
-    "num_speaker": 109,
+    "num_speaker": 108,
     "dim_speaker": 64,
     "n_emb_project": 4096,
     "n_downsample_stack": 6,

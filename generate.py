@@ -30,6 +30,11 @@ tf.app.flags.DEFINE_string(
 tf.app.flags.DEFINE_string(
   'speaker_list', './etc/speakers.tsv', 'List of global control signal'
 )
+tf.app.flags.DEFINE_string(
+  'test_list', 'list_seed0_test.tsv', 'List of global control signal'
+)
+
+
 tf.app.flags.DEFINE_integer('period', 0, 'Periodically generate')
 tf.app.flags.DEFINE_string('mode', 'exemplar', 'Mode: exemplar, encoding, id')
 tf.app.flags.DEFINE_string(
@@ -56,12 +61,34 @@ def main(unused_args):
   net = VQVAE(arch)
 
   # they start roughly at the same position but end very differently (3 is longest)
-  filenames = [
-    'dataset/VCTK/tfr/p227/p227_363.tfr',
-    'dataset/VCTK/tfr/p240/p240_341.tfr',
-    'dataset/VCTK/tfr/p243/p243_359.tfr',
-    'dataset/VCTK/tfr/p231/p231_430.tfr']
+  #filenames = [
+    #'dataset/VCTK/tfr_test/p374/p374_01731.tfr',
+    #'dataset/VCTK/tfr_test/p259/p259_05290.tfr',
+    #'dataset/VCTK/tfr_test/p339/p339_11042.tfr',
+    #'dataset/VCTK/tfr_test/p267/p267_06245.tfr']
+  #data = ByteWavWholeReader(speaker_list, filenames)
+  
+  
+  speaker_ids = {}
+  i=0
+  for spk in speaker_list:
+     speaker_ids[spk] = np.array([i]) 
+     i+=1
+  filenames = []
+  tgts = []
+  inv_tgts = []
+  segments = []
+  with open(args.test_list, 'r') as stream:
+      for line in stream:
+          segment, src, tgt = line.strip().split()
+          filenames.append('dataset/VCTK/tfr_test/' + segment + '.tfr')
+          tgts.append(speaker_ids[tgt])
+          inv_tgts.append(tgt)
+          segments.append(segment.split('/')[1])
+          
   data = ByteWavWholeReader(speaker_list, filenames)
+  
+
 
   X = tf.placeholder(dtype=tf.int64, shape=[None, None])
   Y = tf.placeholder(dtype=tf.int64, shape=[None,])
@@ -96,7 +123,7 @@ def main(unused_args):
     length_input = net.n_padding() + 1  # same as padding + 1
 
     ini = 15149 - length_input
-    end = 42285
+    end = int(42285*1.4)
     # x_source1 = results1['x'][:, ini: end]
     # x_source2 = results2['x'][:, ini: end]
     for i in range(len(results)):
@@ -107,29 +134,41 @@ def main(unused_args):
     
     # from pdb import set_trace
     # set_trace()
-    x_source = np.concatenate(
-      [results[0]['x'],
-       results[0]['x'],
-       results[1]['x'],
-       results[1]['x'],
-       results[2]['x'],
-       results[2]['x'],
-       results[3]['x'],
-       results[3]['x']],
-      0)
+    xxx = []
+    yyy = []
+    for i, r in enumerate( results):
+        xxx.append( r['x'] )
+        yyy.append( tgts[i])
 
+    x_source = np.concatenate(xxx,0)
+    y_input = np.concatenate(yyy,0)
     B = x_source.shape[0]
 
-    y_input = np.concatenate(
-        [results[0]['y'],
-         results[3]['y'],
-         results[1]['y'],
-         results[0]['y'],
-         results[2]['y'],
-         results[3]['y'],
-         results[3]['y'],
-         results[0]['y']],
-      0)
+    #x_source = np.concatenate(
+      #[results[0]['x'],
+       #results[0]['x'],
+       #results[1]['x'],
+       #results[1]['x'],
+       #results[2]['x'],
+       #results[2]['x'],
+       #results[3]['x'],
+       #results[3]['x']],
+      #0)
+
+
+    #y_input = np.concatenate(
+        #[results[0]['y'],
+         #results[3]['y'],
+         #results[1]['y'],
+         #results[0]['y'],
+         #results[2]['y'],
+         #results[3]['y'],
+         #results[3]['y'],
+         #results[0]['y']],
+      #0)
+        
+    print("y_input")
+    print(y_input)
 
     length_target = x_source.shape[1] - length_input
 
@@ -161,7 +200,9 @@ def main(unused_args):
         for i in range(x_wav.shape[0]):
           x_1ch = np.expand_dims(x_gen[i], -1)
           x_bin = sess.run(XBIN, feed_dict={X: x_1ch})
-          with open(os.path.join(logdir, 'testwav-{}.wav'.format(i)), 'wb') as fp:
+          name = os.path.join(logdir, 'testwav-' + segments[i] + '_' + inv_tgts[i] + '.wav')
+          print("Writing to ", name)
+          with open(name, 'wb') as fp:
             fp.write(x_bin)
 
       # For periodic gen.
